@@ -13,16 +13,15 @@ jobs:
         with:
           python-version: '3.9'
       
-      - name: Install system dependencies
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential \
             git \
             zip \
             unzip \
             openjdk-11-jdk \
-            python3-dev \
+            python3-pip \
             autoconf \
             libtool \
             pkg-config \
@@ -34,50 +33,87 @@ jobs:
             libffi-dev \
             libssl-dev
       
-      - name: Install Python dependencies
+      - name: Install Buildozer
         run: |
           python -m pip install --upgrade pip
           pip install --upgrade Cython==0.29.33 buildozer==1.5.0
       
-      - name: Find buildozer.spec
-        id: find_spec
+      - name: Create or update buildozer.spec
         run: |
-          SPEC_PATH=$(find . -name "buildozer.spec" | head -n 1)
-          if [ -n "$SPEC_PATH" ]; then
-            SPEC_DIR=$(dirname "$SPEC_PATH")
-            echo "Found buildozer.spec in: $SPEC_DIR"
-            echo "spec_dir=$SPEC_DIR" >> $GITHUB_OUTPUT
+          if [ -f "buildozer.spec" ]; then
+            # Modify existing buildozer.spec
+            sed -i 's/requirements = .*/requirements = python3,kivy==2.1.0,pillow,numpy,opencv-python-headless<4.3,tensorflow-lite==2.12.0,requests/g' buildozer.spec
+          elif [ -f "salinterpret/buildozer.spec" ]; then
+            # Modify existing buildozer.spec in salinterpret directory
+            sed -i 's/requirements = .*/requirements = python3,kivy==2.1.0,pillow,numpy,opencv-python-headless<4.3,tensorflow-lite==2.12.0,requests/g' salinterpret/buildozer.spec
           else
-            echo "Creating default buildozer.spec in current directory"
-            buildozer init
-            echo "spec_dir=." >> $GITHUB_OUTPUT
+            # Create new buildozer.spec
+            echo "Creating new buildozer.spec..."
+            cat > buildozer.spec << EOF
+[app]
+title = ASL Translator
+package.name = asltranslator
+package.domain = org.salinterpret
+source.dir = .
+source.include_exts = py,png,jpg,kv,atlas
+version = 1.0
+requirements = python3,kivy==2.1.0,pillow,numpy,opencv-python-headless<4.3,tensorflow-lite==2.12.0,requests
+orientation = portrait
+fullscreen = 0
+android.permissions = CAMERA,INTERNET
+android.arch = arm64-v8a, armeabi-v7a
+android.allow_backup = True
+android.api = 31
+android.minapi = 21
+android.ndk = 23b
+android.sdk = 31
+android.debug = False
+EOF
           fi
+      
+      - name: List directory structure
+        run: |
+          find . -type f -name "main.py" | sort
       
       - name: Build APK
         run: |
-          cd ${{ steps.find_spec.outputs.spec_dir }}
-          buildozer android debug
-          
-      - name: List all APKs
+          if [ -f "main.py" ]; then
+            buildozer -v android debug
+          elif [ -f "salinterpret/main.py" ]; then
+            cd salinterpret
+            buildozer -v android debug
+          else
+            echo "ERROR: Could not find main.py file!"
+            find . -type f -name "*.py" | head -n 10
+            exit 1
+          fi
+      
+      - name: List APKs
         if: always()
         run: |
-          echo "Looking for APK files..."
           find . -name "*.apk"
       
-      - name: Create Release
+      - name: Create GitHub Release
         if: success()
         run: |
+          sudo apt-get update
+          sudo apt-get install -y gh
+          
           APK_PATH=$(find . -name "*.apk" | head -n 1)
           if [ -n "$APK_PATH" ]; then
             echo "APK found at: $APK_PATH"
             
-            curl -X POST \
-              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              -H "Accept: application/vnd.github.v3+json" \
-              -H "Content-Type: application/octet-stream" \
-              --data-binary @"$APK_PATH" \
-              "https://uploads.github.com/repos/${{ github.repository }}/releases/tags/latest/assets?name=asl_translator.apk"
+            # Create release with found APK
+            gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
+            
+            # Create a tag based on timestamp
+            TAG_NAME="v-$(date +%Y%m%d%H%M%S)"
+            
+            # Create new release
+            gh release create "$TAG_NAME" "$APK_PATH" --title "ASL Translator APK" --notes "Built with GitHub Actions"
           else
             echo "No APK file was found!"
             exit 1
           fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
