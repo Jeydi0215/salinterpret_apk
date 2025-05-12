@@ -104,22 +104,18 @@ jobs:
           cat buildozer.spec
           echo "Using Android NDK at: $ANDROIDNDK"
           
-          # Initialize buildozer first (important to set up p4a)
-          buildozer init
-          
-          # Explicitly force download/setup of p4a before cleaning
-          buildozer android p4a --version
-          
-          # Make sure the p4a directory exists and is up to date
+          # Explicitly force download/setup of p4a before building
           mkdir -p .buildozer/android/platform/
           cd .buildozer/android/platform/
-          [ -d "python-for-android" ] || git clone https://github.com/kivy/python-for-android.git --branch develop
+          echo "Cloning Python-for-Android repository..."
+          [ -d "python-for-android" ] || git clone https://github.com/kivy/python-for-android.git
           cd python-for-android
-          git checkout develop
+          git checkout master  # Use master branch for stability
           git pull
           cd ../../../..
           
-          # Now proceed with the build
+          # Use buildozer to build the APK
+          echo "Starting build with NDK at $ANDROIDNDK"
           buildozer -v android debug
           
           # If build fails, show detailed logs
