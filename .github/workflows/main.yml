@@ -49,26 +49,24 @@ jobs:
           else
             # Create new buildozer.spec
             echo "Creating new buildozer.spec..."
-            cat > buildozer.spec << EOF
-[app]
-title = ASL Translator
-package.name = asltranslator
-package.domain = org.salinterpret
-source.dir = .
-source.include_exts = py,png,jpg,kv,atlas
-version = 1.0
-requirements = python3,kivy==2.1.0,pillow,numpy,opencv-python-headless<4.3,tensorflow-lite==2.12.0,requests
-orientation = portrait
-fullscreen = 0
-android.permissions = CAMERA,INTERNET
-android.arch = arm64-v8a, armeabi-v7a
-android.allow_backup = True
-android.api = 31
-android.minapi = 21
-android.ndk = 23b
-android.sdk = 31
-android.debug = False
-EOF
+            echo '[app]' > buildozer.spec
+            echo 'title = ASL Translator' >> buildozer.spec
+            echo 'package.name = asltranslator' >> buildozer.spec
+            echo 'package.domain = org.salinterpret' >> buildozer.spec
+            echo 'source.dir = .' >> buildozer.spec
+            echo 'source.include_exts = py,png,jpg,kv,atlas' >> buildozer.spec
+            echo 'version = 1.0' >> buildozer.spec
+            echo 'requirements = python3,kivy==2.1.0,pillow,numpy,opencv-python-headless<4.3,tensorflow-lite==2.12.0,requests' >> buildozer.spec
+            echo 'orientation = portrait' >> buildozer.spec
+            echo 'fullscreen = 0' >> buildozer.spec
+            echo 'android.permissions = CAMERA,INTERNET' >> buildozer.spec
+            echo 'android.arch = arm64-v8a, armeabi-v7a' >> buildozer.spec
+            echo 'android.allow_backup = True' >> buildozer.spec
+            echo 'android.api = 31' >> buildozer.spec
+            echo 'android.minapi = 21' >> buildozer.spec
+            echo 'android.ndk = 23b' >> buildozer.spec
+            echo 'android.sdk = 31' >> buildozer.spec
+            echo 'android.debug = False' >> buildozer.spec
           fi
       
       - name: List directory structure
