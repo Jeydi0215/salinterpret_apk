@@ -1,16 +1,17 @@
 name: Build ASL Translator APK
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+    branches: [ master, main ]
   workflow_dispatch:  # Allows manual triggering
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          lfs: true  # Important for Git LFS
         
       - name: Setup Python
         uses: actions/setup-python@v4
