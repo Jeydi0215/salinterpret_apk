@@ -9,17 +9,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v2
         with:
-          lfs: true  # Important for Git LFS
+          lfs: true
         
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v2
         with:
           python-version: '3.9'
           
       - name: Cache Buildozer dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v2
         with:
           path: |
             ~/.buildozer
@@ -51,17 +51,19 @@ jobs:
           buildozer android debug
         
       - name: Upload Debug APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v2
         with:
           name: asl-translator-debug
           path: salinterpret/bin/*.apk
           
-      - name: Create pre-release
-        uses: "marvinpinto/action-automatic-releases@latest"
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        if: success()
         with:
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          automatic_release_tag: "latest"
+          tag_name: latest
+          name: Development Build
+          draft: false
           prerelease: true
-          title: "Development Build"
-          files: |
-            salinterpret/bin/*.apk
+          files: salinterpret/bin/*.apk
+          token: ${{ secrets.GITHUB_TOKEN }}
