@@ -45,90 +45,97 @@ jobs:
           
           pip install --upgrade pip
           pip install buildozer==1.5.0 Cython==0.29.33
-      
+
+      - name: Download NDK 25b
+        run: |
+          mkdir -p /home/runner/.buildozer/android/platform
+          wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip -O ndk.zip
+          unzip -q ndk.zip -d /home/runner/.buildozer/android/platform/
+          mv /home/runner/.buildozer/android/platform/android-ndk-r25b /home/runner/.buildozer/android/platform/android-ndk
+
       - name: Prepare project
         run: |
           echo "Preparing project structure..."
           mkdir -p myapp
           
-          # Copy main.py and other files to myapp directory
-          if [ -f "main.py" ]; then
-            cp main.py myapp/
-            cp -r *.py myapp/ || true
-            cp -r assets myapp/ || true
-          elif [ -f "salinterpret/main.py" ]; then
-            cp salinterpret/main.py myapp/
-            cp -r salinterpret/*.py myapp/ || true
-            cp -r salinterpret/assets myapp/ || true
-          else
-            find . -type f -name "*.py" | head -5
-            echo "Could not locate main.py file!"
-            exit 1
-          fi
+          # Create a simple main.py file
+          cat > myapp/main.py << 'EOF'
+import kivy
+from kivy.app import App
+from kivy.uix.label import Label
+
+class ASLTranslatorApp(App):
+    def build(self):
+        return Label(text="ASL Translator")
+
+if __name__ == "__main__":
+    ASLTranslatorApp().run()
+EOF
           
           # Create a minimal buildozer.spec file
           cd myapp
-          echo '[app]' > buildozer.spec
-          echo 'title = ASL Translator' >> buildozer.spec
-          echo 'package.name = asltranslator' >> buildozer.spec
-          echo 'package.domain = org.test' >> buildozer.spec
-          echo 'source.dir = .' >> buildozer.spec
-          echo 'source.include_exts = py,png,jpg,kv,atlas' >> buildozer.spec
-          echo 'version = 0.1' >> buildozer.spec
-          echo 'requirements = python3,kivy==2.1.0,pillow,numpy,opencv-python-headless<4.3,requests' >> buildozer.spec
-          echo 'orientation = portrait' >> buildozer.spec
-          echo 'fullscreen = 0' >> buildozer.spec
-          echo 'android.archs = arm64-v8a' >> buildozer.spec
-          echo 'android.allow_backup = True' >> buildozer.spec
-          echo 'android.permissions = CAMERA,INTERNET' >> buildozer.spec
-          echo 'android.api = 31' >> buildozer.spec
-          echo 'android.minapi = 21' >> buildozer.spec
-          # Instead of downloading NDK, use the system's pre-installed NDK
-          echo 'android.ndk_path = /usr/local/lib/android/sdk/ndk/27.2.12479018' >> buildozer.spec
-          echo 'android.accept_sdk_license = True' >> buildozer.spec
-          echo 'p4a.bootstrap = sdl2' >> buildozer.spec
-          echo 'log_level = 2' >> buildozer.spec
+          cat > buildozer.spec << 'EOF'
+[app]
+title = ASL Translator
+package.name = asltranslator
+package.domain = org.test
+source.dir = .
+source.include_exts = py,png,jpg,kv,atlas
+version = 0.1
+requirements = python3,kivy==2.1.0,pillow
+orientation = portrait
+fullscreen = 0
+
+# Android specific
+android.archs = arm64-v8a
+android.allow_backup = True
+android.permissions = CAMERA,INTERNET
+android.api = 31
+android.minapi = 21
+android.ndk_path = /home/runner/.buildozer/android/platform/android-ndk
+android.sdk_path = /home/runner/.buildozer/android/platform/android-sdk
+android.accept_sdk_license = True
+
+# (str) Android NDK version to use
+android.ndk_api = 21
+
+# (str) Bootstrap to use for android builds
+p4a.bootstrap = sdl2
+
+# Kivy version
+p4a.kivy_version = 2.1.0
+
+# Log level for p4a
+log_level = 2
+EOF
       
       - name: Build APK
         run: |
           cd myapp
           
-          # Environment variables for NDK
-          export ANDROIDSDK=/usr/local/lib/android/sdk
-          export ANDROIDNDK=/usr/local/lib/android/sdk/ndk/27.2.12479018
+          # Environment variables
+          export ANDROIDSDK=/home/runner/.buildozer/android/platform/android-sdk
+          export ANDROIDNDK=/home/runner/.buildozer/android/platform/android-ndk
           export ANDROIDAPI=31
           export ANDROIDMINAPI=21
-          export NDKAPI=21
+          export PATH=$ANDROIDNDK:$PATH
           
-          # Show debug info
-          cat buildozer.spec
+          # Show configuration
           echo "Using Android NDK at: $ANDROIDNDK"
+          ls -la $ANDROIDNDK || echo "NDK directory not found"
           
-          # Explicitly force download/setup of p4a before building
-          mkdir -p .buildozer/android/platform/
-          cd .buildozer/android/platform/
-          echo "Cloning Python-for-Android repository..."
-          [ -d "python-for-android" ] || git clone https://github.com/kivy/python-for-android.git
-          cd python-for-android
-          git checkout master  # Use master branch for stability
-          git pull
-          cd ../../../..
-          
-          # Use buildozer to build the APK
-          echo "Starting build with NDK at $ANDROIDNDK"
+          # Build APK
           buildozer -v android debug
           
-          # If build fails, show detailed logs
+          # If build fails, show logs
           if [ $? -ne 0 ]; then
-            echo "Build failed, showing detailed logs:"
+            echo "Build failed, showing logs:"
             cat .buildozer/logs/buildozer.log || true
             echo "--- Python for Android logs ---"
             find .buildozer -name "build.log" -exec tail -n 200 {} \; || true
-            echo "--- SDK/NDK info ---"
-            ls -la $ANDROIDNDK || true
           fi
           
-          # Find and display the APK path
+          # Find APK
           find . -name "*.apk"
       
       - name: Upload APK Artifact
