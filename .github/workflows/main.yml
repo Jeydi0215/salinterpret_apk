@@ -3,102 +3,92 @@ on: [push, workflow_dispatch]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04  # Use Ubuntu 20.04 which has better compatibility with older packages
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       
-      - name: Set up Docker
-        uses: docker/setup-buildx-action@v1
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
       
-      - name: Build APK in Docker
-        run: |
-          # Create directory for the output
-          mkdir -p ~/apk_output
-          
-          # Run the Kivy Docker container to build the APK
-          docker run --rm -v ${{ github.workspace }}:/app -v ~/apk_output:/output kivy/python-for-android bash -c "
-            cd /app
-            python -m pip install --upgrade pip buildozer cython
-            
-            # Find and use the right directory
-            if [ -f 'main.py' ]; then
-              WORK_DIR=.
-            elif [ -f 'salinterpret/main.py' ]; then
-              WORK_DIR=salinterpret
-            else
-              echo 'Cannot find main.py!'
-              exit 1
-            fi
-            
-            cd \$WORK_DIR
-            
-            # Create or update buildozer.spec
-            if [ ! -f 'buildozer.spec' ]; then
-              echo 'Creating buildozer.spec'
-              echo '[app]' > buildozer.spec
-              echo 'title = ASL Translator' >> buildozer.spec
-              echo 'package.name = asltranslator' >> buildozer.spec
-              echo 'package.domain = org.salinterpret' >> buildozer.spec
-              echo 'source.dir = .' >> buildozer.spec
-              echo 'source.include_exts = py,png,jpg,kv,atlas' >> buildozer.spec
-              echo 'version = 1.0' >> buildozer.spec
-              echo 'requirements = python3,kivy==2.1.0,pillow,numpy,opencv-python-headless<4.3,requests' >> buildozer.spec
-              echo 'orientation = portrait' >> buildozer.spec
-              echo 'fullscreen = 0' >> buildozer.spec
-              echo 'android.permissions = CAMERA,INTERNET' >> buildozer.spec
-              echo 'android.arch = arm64-v8a' >> buildozer.spec
-              echo 'android.allow_backup = True' >> buildozer.spec
-              echo 'android.api = 31' >> buildozer.spec
-              echo 'android.minapi = 21' >> buildozer.spec
-              echo 'android.ndk = 23b' >> buildozer.spec
-              echo 'android.sdk = 31' >> buildozer.spec
-              echo 'android.debug = False' >> buildozer.spec
-            else
-              # Update the requirements
-              sed -i 's/requirements = .*/requirements = python3,kivy==2.1.0,pillow,numpy,opencv-python-headless<4.3,requests/' buildozer.spec
-            fi
-            
-            # Build the APK with verbose output
-            buildozer -v android debug
-            
-            # Copy the APK to the output volume
-            find . -name '*.apk' -exec cp {} /output/ \\;
-          "
-          
-          # List APKs in the output directory
-          ls -la ~/apk_output
-          
-          # Copy the APK back to the workspace
-          cp ~/apk_output/*.apk ${{ github.workspace }}/ || echo "No APK found in output directory"
-      
-      - name: List APKs
-        run: |
-          find ${{ github.workspace }} -name "*.apk"
-      
-      - name: Create GitHub Release
-        if: success()
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gh
+          sudo apt-get install -y \
+            python3-dev \
+            build-essential \
+            libsdl2-dev \
+            libsdl2-image-dev \
+            libsdl2-mixer-dev \
+            libsdl2-ttf-dev \
+            libportmidi-dev \
+            libswscale-dev \
+            libavformat-dev \
+            libavcodec-dev \
+            zlib1g-dev \
+            libgstreamer1.0-dev \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good
           
-          APK_PATH=$(find ${{ github.workspace }} -name "*.apk" | head -n 1)
-          if [ -n "$APK_PATH" ]; then
-            echo "APK found at: $APK_PATH"
-            
-            # Create release with found APK
-            gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
-            
-            # Create a tag based on timestamp
-            TAG_NAME="v-$(date +%Y%m%d%H%M%S)"
-            
-            # Create new release
-            gh release create "$TAG_NAME" "$APK_PATH" --title "ASL Translator APK" --notes "Built with GitHub Actions"
-            
-            echo "Release created successfully with tag: $TAG_NAME"
+          pip install --upgrade pip
+          pip install buildozer==1.5.0 Cython==0.29.33
+      
+      - name: Prepare project
+        run: |
+          echo "Preparing project structure..."
+          mkdir -p myapp
+          
+          # Copy main.py and other files to myapp directory
+          if [ -f "main.py" ]; then
+            cp main.py myapp/
+            cp -r *.py myapp/ || true
+            cp -r assets myapp/ || true
+          elif [ -f "salinterpret/main.py" ]; then
+            cp salinterpret/main.py myapp/
+            cp -r salinterpret/*.py myapp/ || true
+            cp -r salinterpret/assets myapp/ || true
           else
-            echo "No APK file was found!"
+            find . -type f -name "*.py" | head -5
+            echo "Could not locate main.py file!"
             exit 1
           fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+          # Create a minimal buildozer.spec file
+          cd myapp
+          cat > buildozer.spec << EOF
+[app]
+title = ASL Translator
+package.name = asltranslator
+package.domain = org.test
+source.dir = .
+source.include_exts = py,png,jpg,kv,atlas
+version = 0.1
+requirements = python3,kivy==2.1.0,pillow,numpy,opencv-python-headless<4.3,requests
+orientation = portrait
+osx.python_version = 3
+osx.kivy_version = 2.1.0
+fullscreen = 0
+android.archs = arm64-v8a
+android.allow_backup = True
+android.permissions = CAMERA,INTERNET
+android.api = 31
+android.minapi = 21
+android.ndk = 23b
+EOF
+      
+      - name: Build APK
+        run: |
+          cd myapp
+          buildozer android debug
+          
+          # Copy APK to workspace root for easier access
+          find . -name "*.apk" -exec cp {} .. \;
+      
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: asl-translator-apk
+          path: myapp/bin/*.apk
+          if-no-files-found: error
