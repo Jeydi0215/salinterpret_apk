@@ -9,6 +9,11 @@ jobs:
         with:
           lfs: true
           
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+          
       - name: Cache Buildozer dependencies
         uses: actions/cache@v3
         with:
@@ -22,16 +27,28 @@ jobs:
         with:
           workdir: salinterpret
           buildozer_version: stable
-
-      # This step just lists the files to verify what was created
-      - name: List created files
-        run: |
-          echo "Files in salinterpret/bin:"
-          find salinterpret/bin -type f || echo "No files found"
           
-      - name: Upload APK
+      # Let's skip the artifact upload for now since it's causing issues
+      # We'll focus on just getting a successful build first
+      
+      # After build completes, create a custom release without using the actions
+      - name: Create GitHub Release
         if: success()
-        uses: actions/upload-artifact@v2  # Changed to v2
-        with:
-          name: app-debug
-          path: salinterpret/bin/*.apk
+        run: |
+          APK_PATH=$(find salinterpret/bin -name "*.apk" | head -n 1)
+          if [ -n "$APK_PATH" ]; then
+            echo "APK found at: $APK_PATH"
+            
+            # Install GitHub CLI
+            sudo apt-get update
+            sudo apt-get install -y gh
+            
+            # Create release with found APK
+            gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
+            gh release create release-v1.0 "$APK_PATH" --title "ASL Translator APK" --notes "Built with GitHub Actions"
+          else
+            echo "No APK file was found!"
+            exit 1
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
