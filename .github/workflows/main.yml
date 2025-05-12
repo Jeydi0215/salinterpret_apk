@@ -8,88 +8,75 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
       
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.9'
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v1
       
-      - name: Install dependencies
+      - name: Build APK in Docker
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            git \
-            zip \
-            unzip \
-            openjdk-11-jdk \
-            python3-pip \
-            autoconf \
-            libtool \
-            pkg-config \
-            zlib1g-dev \
-            libncurses5-dev \
-            libncursesw5-dev \
-            libtinfo-dev \
-            cmake \
-            libffi-dev \
-            libssl-dev
-      
-      - name: Install Buildozer
-        run: |
-          python -m pip install --upgrade pip
-          pip install --upgrade Cython==0.29.33 buildozer==1.5.0
-      
-      - name: Create or update buildozer.spec
-        run: |
-          if [ -f "buildozer.spec" ]; then
-            # Modify existing buildozer.spec
-            sed -i 's/requirements = .*/requirements = python3,kivy==2.1.0,pillow,numpy,opencv-python-headless<4.3,tensorflow-lite==2.12.0,requests/g' buildozer.spec
-          elif [ -f "salinterpret/buildozer.spec" ]; then
-            # Modify existing buildozer.spec in salinterpret directory
-            sed -i 's/requirements = .*/requirements = python3,kivy==2.1.0,pillow,numpy,opencv-python-headless<4.3,tensorflow-lite==2.12.0,requests/g' salinterpret/buildozer.spec
-          else
-            # Create new buildozer.spec
-            echo "Creating new buildozer.spec..."
-            echo '[app]' > buildozer.spec
-            echo 'title = ASL Translator' >> buildozer.spec
-            echo 'package.name = asltranslator' >> buildozer.spec
-            echo 'package.domain = org.salinterpret' >> buildozer.spec
-            echo 'source.dir = .' >> buildozer.spec
-            echo 'source.include_exts = py,png,jpg,kv,atlas' >> buildozer.spec
-            echo 'version = 1.0' >> buildozer.spec
-            echo 'requirements = python3,kivy==2.1.0,pillow,numpy,opencv-python-headless<4.3,tensorflow-lite==2.12.0,requests' >> buildozer.spec
-            echo 'orientation = portrait' >> buildozer.spec
-            echo 'fullscreen = 0' >> buildozer.spec
-            echo 'android.permissions = CAMERA,INTERNET' >> buildozer.spec
-            echo 'android.arch = arm64-v8a, armeabi-v7a' >> buildozer.spec
-            echo 'android.allow_backup = True' >> buildozer.spec
-            echo 'android.api = 31' >> buildozer.spec
-            echo 'android.minapi = 21' >> buildozer.spec
-            echo 'android.ndk = 23b' >> buildozer.spec
-            echo 'android.sdk = 31' >> buildozer.spec
-            echo 'android.debug = False' >> buildozer.spec
-          fi
-      
-      - name: List directory structure
-        run: |
-          find . -type f -name "main.py" | sort
-      
-      - name: Build APK
-        run: |
-          if [ -f "main.py" ]; then
+          # Create directory for the output
+          mkdir -p ~/apk_output
+          
+          # Run the Kivy Docker container to build the APK
+          docker run --rm -v ${{ github.workspace }}:/app -v ~/apk_output:/output kivy/python-for-android bash -c "
+            cd /app
+            python -m pip install --upgrade pip buildozer cython
+            
+            # Find and use the right directory
+            if [ -f 'main.py' ]; then
+              WORK_DIR=.
+            elif [ -f 'salinterpret/main.py' ]; then
+              WORK_DIR=salinterpret
+            else
+              echo 'Cannot find main.py!'
+              exit 1
+            fi
+            
+            cd \$WORK_DIR
+            
+            # Create or update buildozer.spec
+            if [ ! -f 'buildozer.spec' ]; then
+              echo 'Creating buildozer.spec'
+              cat > buildozer.spec << EOF
+[app]
+title = ASL Translator
+package.name = asltranslator
+package.domain = org.salinterpret
+source.dir = .
+source.include_exts = py,png,jpg,kv,atlas
+version = 1.0
+requirements = python3,kivy==2.1.0,pillow,numpy,opencv-python-headless<4.3,requests
+orientation = portrait
+fullscreen = 0
+android.permissions = CAMERA,INTERNET
+android.arch = arm64-v8a
+android.allow_backup = True
+android.api = 31
+android.minapi = 21
+android.ndk = 23b
+android.sdk = 31
+android.debug = False
+EOF
+            else
+              # Update the requirements
+              sed -i 's/requirements = .*/requirements = python3,kivy==2.1.0,pillow,numpy,opencv-python-headless<4.3,requests/' buildozer.spec
+            fi
+            
+            # Build the APK with verbose output
             buildozer -v android debug
-          elif [ -f "salinterpret/main.py" ]; then
-            cd salinterpret
-            buildozer -v android debug
-          else
-            echo "ERROR: Could not find main.py file!"
-            find . -type f -name "*.py" | head -n 10
-            exit 1
-          fi
+            
+            # Copy the APK to the output volume
+            find . -name '*.apk' -exec cp {} /output/ \\;
+          "
+          
+          # List APKs in the output directory
+          ls -la ~/apk_output
+          
+          # Copy the APK back to the workspace
+          cp ~/apk_output/*.apk ${{ github.workspace }}/ || echo "No APK found in output directory"
       
       - name: List APKs
-        if: always()
         run: |
-          find . -name "*.apk"
+          find ${{ github.workspace }} -name "*.apk"
       
       - name: Create GitHub Release
         if: success()
@@ -97,7 +84,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gh
           
-          APK_PATH=$(find . -name "*.apk" | head -n 1)
+          APK_PATH=$(find ${{ github.workspace }} -name "*.apk" | head -n 1)
           if [ -n "$APK_PATH" ]; then
             echo "APK found at: $APK_PATH"
             
@@ -109,6 +96,8 @@ jobs:
             
             # Create new release
             gh release create "$TAG_NAME" "$APK_PATH" --title "ASL Translator APK" --notes "Built with GitHub Actions"
+            
+            echo "Release created successfully with tag: $TAG_NAME"
           else
             echo "No APK file was found!"
             exit 1
