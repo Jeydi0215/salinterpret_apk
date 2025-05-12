@@ -2,11 +2,11 @@ name: Build ASL Translator APK
 on:
   push:
     branches: [ master, main ]
-  workflow_dispatch:  # Allows manual triggering
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -49,21 +49,33 @@ jobs:
           
           # Build the APK
           buildozer android debug
-        
-      - name: Upload Debug APK
-        uses: actions/upload-artifact@v2
-        with:
-          name: asl-translator-debug
-          path: salinterpret/bin/*.apk
           
-      - name: Create Release
-        id: create_release
-        uses: softprops/action-gh-release@v1
+          # List files to verify APK was created
+          ls -la bin/ || echo "bin directory may not exist yet"
+        
+      - name: List and Store APK
         if: success()
-        with:
-          tag_name: latest
-          name: Development Build
-          draft: false
-          prerelease: true
-          files: salinterpret/bin/*.apk
-          token: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p artifacts
+          find salinterpret/bin -name "*.apk" -exec cp {} artifacts/ \;
+          ls -la artifacts/
+          
+      # Using GitHub CLI for release creation instead of actions
+      - name: Create GitHub Release
+        if: success()
+        run: |
+          sudo apt-get install -y gh
+          gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
+          
+          # Check if release exists and delete it
+          gh release delete latest --yes || echo "Release does not exist yet"
+          
+          # Create new release with any APKs found
+          if [ "$(find artifacts -name '*.apk' | wc -l)" -gt 0 ]; then
+            gh release create latest artifacts/*.apk --title "Latest Build" --notes "Automated build from GitHub Actions" --prerelease
+          else
+            echo "No APK files found to release"
+            exit 1
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
