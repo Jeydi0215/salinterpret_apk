@@ -1,12 +1,10 @@
 name: Build ASL Translator APK
-
 on:
   push:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:  # Allows manual triggering
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -25,7 +23,7 @@ jobs:
           path: |
             ~/.buildozer
             .buildozer
-          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
+          key: ${{ runner.os }}-buildozer-${{ hashFiles('salinterpret/buildozer.spec') }}
         
       - name: Install system dependencies
         run: |
@@ -38,6 +36,9 @@ jobs:
           
       - name: Build APK with Buildozer
         run: |
+          # Move to the directory containing buildozer.spec
+          cd salinterpret
+          
           # Set environment variables for NDK/SDK
           export PATH=$PATH:~/.buildozer/android/platform/android-sdk/tools/bin
           export ANDROID_SDK_ROOT=~/.buildozer/android/platform/android-sdk
@@ -52,7 +53,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: asl-translator-debug
-          path: bin/*.apk
+          path: salinterpret/bin/*.apk
           
       - name: Create pre-release
         uses: "marvinpinto/action-automatic-releases@latest"
@@ -62,4 +63,4 @@ jobs:
           prerelease: true
           title: "Development Build"
           files: |
-            bin/*.apk
+            salinterpret/bin/*.apk
