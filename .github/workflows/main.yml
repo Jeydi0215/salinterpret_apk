@@ -1,68 +1,37 @@
-name: Build ASL Translator APK
-on:
-  push:
-    branches: [ master, main ]
-  workflow_dispatch:
+name: Build APK
+on: [push, workflow_dispatch]
 
 jobs:
   build:
-    runs-on: ubuntu-latest  # Changed from ubuntu-20.04 to ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3  # Updated to v3
+      - uses: actions/checkout@v2
         with:
           lfs: true
-        
-      - name: Setup Python
-        uses: actions/setup-python@v4  # Updated to v4
-        with:
-          python-version: '3.9'
           
       - name: Cache Buildozer dependencies
-        uses: actions/cache@v3  # Updated to v3
+        uses: actions/cache@v3
         with:
           path: |
             ~/.buildozer
-            .buildozer
+            salinterpret/.buildozer
           key: ${{ runner.os }}-buildozer-${{ hashFiles('salinterpret/buildozer.spec') }}
-        
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git zip unzip openjdk-11-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
-          
-      - name: Install build dependencies
-        run: |
-          pip install --upgrade Cython==0.29.33 virtualenv buildozer==1.5.0
-          
-      - name: Build APK with Buildozer
-        run: |
-          # List directories to understand file structure
-          echo "Current directory: $(pwd)"
-          ls -la
-          
-          # Move to the directory containing buildozer.spec
-          cd salinterpret
-          
-          # Verify buildozer.spec exists
-          ls -la
-          
-          # Set environment variables for NDK/SDK
-          export PATH=$PATH:~/.buildozer/android/platform/android-sdk/tools/bin
-          export ANDROID_SDK_ROOT=~/.buildozer/android/platform/android-sdk
-          
-          # Clean any previous builds
-          buildozer clean
-          
-          # Build the APK with verbose output
-          buildozer -v android debug
-          
-          # Check if the APK was created
-          find bin -type f -name "*.apk" || echo "No APK files found"
-        
-      - name: Upload APK artifact
-        if: success()
-        uses: actions/upload-artifact@v3  # Trying v3 since we're using latest runners
+
+      - name: Build with Buildozer
+        uses: ArtemSBulgakov/buildozer-action@v1
         with:
-          name: asl-translator-apk
+          workdir: salinterpret
+          buildozer_version: stable
+
+      # This step just lists the files to verify what was created
+      - name: List created files
+        run: |
+          echo "Files in salinterpret/bin:"
+          find salinterpret/bin -type f || echo "No files found"
+          
+      - name: Upload APK
+        if: success()
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-debug
           path: salinterpret/bin/*.apk
