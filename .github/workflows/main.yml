@@ -3,7 +3,7 @@ on: [push, workflow_dispatch]
 
 jobs:
   build:
-    runs-on: ubuntu-20.04  # Use Ubuntu 20.04 for better compatibility
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -61,7 +61,7 @@ jobs:
             exit 1
           fi
           
-          # Create a simplified buildozer.spec file
+          # Create a minimal buildozer.spec file
           cd myapp
           echo '[app]' > buildozer.spec
           echo 'title = ASL Translator' >> buildozer.spec
@@ -78,10 +78,10 @@ jobs:
           echo 'android.permissions = CAMERA,INTERNET' >> buildozer.spec
           echo 'android.api = 31' >> buildozer.spec
           echo 'android.minapi = 21' >> buildozer.spec
-          echo 'android.ndk = 23b' >> buildozer.spec  # Use version compatible with buildozer
+          echo 'android.ndk = 23b' >> buildozer.spec
           echo 'android.accept_sdk_license = True' >> buildozer.spec
           echo 'p4a.bootstrap = sdl2' >> buildozer.spec
-          echo 'log_level = 2' >> buildozer.spec  # Increase log level for debugging
+          echo 'log_level = 2' >> buildozer.spec
       
       - name: Build APK
         run: |
@@ -89,8 +89,15 @@ jobs:
           # Let buildozer handle the NDK download
           buildozer android debug
           
-          # Find the APK
+          # Find and display the APK path
           find . -name "*.apk"
+      
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: asl-translator-apk
+          path: myapp/bin/*.apk
+          if-no-files-found: error
       
       - name: Create GitHub Release
         if: success()
@@ -98,8 +105,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gh
           
-          cd myapp  # Make sure we're in the right directory
-          APK_PATH=$(find . -name "*.apk" | head -n 1)
+          cd myapp
+          APK_PATH=$(find bin -name "*.apk" | head -n 1)
           if [ -n "$APK_PATH" ]; then
             echo "APK found at: $APK_PATH"
             
