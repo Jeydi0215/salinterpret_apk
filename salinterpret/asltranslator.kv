@@ -1,0 +1,119 @@
+#:kivy 2.1.0
+
+<ASLTranslatorWidget>:
+    orientation: 'vertical'
+    padding: 20
+    spacing: 15
+    canvas.before:
+        Color:
+            rgba: 0.97, 0.97, 0.98, 1  # Light gray background (#f8f9fa)
+        Rectangle:
+            pos: self.pos
+            size: self.size
+    
+    # Title and subtitle
+    BoxLayout:
+        orientation: 'vertical'
+        size_hint_y: 0.15
+        
+        Label:
+            text: 'ASL Translator'
+            font_size: '28sp'
+            bold: True
+            color: 0.17, 0.42, 0.69, 1  # Blue color (#2b6cb0)
+        
+        Label:
+            text: 'Translate American Sign Language in real-time'
+            font_size: '14sp'
+            color: 0.29, 0.33, 0.41, 1  # Gray color (#4a5568)
+    
+    # Camera feed
+    BoxLayout:
+        id: camera_container
+        size_hint_y: 0.5
+        padding: 3
+        canvas.before:
+            Color:
+                rgba: 0.19, 0.51, 0.81, 1  # Blue border (#3182ce)
+            Rectangle:
+                pos: self.pos
+                size: self.size
+    
+    # Status and prediction info
+    BoxLayout:
+        size_hint_y: 0.1
+        spacing: 10
+        padding: 10
+        
+        BoxLayout:
+            size_hint_x: 0.1
+            canvas:
+                Color:
+                    rgba: root.status_color
+                Ellipse:
+                    pos: self.center_x - 7, self.center_y - 7
+                    size: 15, 15
+        
+        Label:
+            text: root.current_letter + ' (' + str(int(root.confidence * 100)) + '%)' if root.hand_detected else 'No hand detected'
+            color: 0.29, 0.33, 0.41, 1  # Gray color (#4a5568)
+            size_hint_x: 0.9
+            text_size: self.size
+            halign: 'left'
+            valign: 'middle'
+    
+    # Translation card
+    BoxLayout:
+        orientation: 'vertical'
+        size_hint_y: 0.15
+        padding: 20
+        spacing: 10
+        canvas.before:
+            Color:
+                rgba: 1, 1, 1, 1  # White background
+            Rectangle:
+                pos: self.pos
+                size: self.size
+            Color:
+                rgba: 0.89, 0.91, 0.94, 1  # Light gray border (#e2e8f0)
+            Line:
+                rectangle: self.x, self.y, self.width, self.height
+                width: 1
+        
+        Label:
+            text: 'Translation'
+            font_size: '14sp'
+            color: 0.29, 0.33, 0.41, 1  # Gray color (#4a5568)
+        
+        Label:
+            text: root.translated_word
+            font_size: '32sp'
+            bold: True
+            color: 0.17, 0.42, 0.69, 1  # Blue color (#2b6cb0)
+    
+    # Buttons
+    BoxLayout:
+        size_hint_y: 0.1
+        spacing: 20
+        padding: 10
+        
+        Button:
+            text: 'Delete Last Letter'
+            on_press: root.delete_last_letter()
+            background_color: 0.19, 0.51, 0.81, 1  # Blue button (#3182ce)
+            color: 1, 1, 1, 1
+            font_size: '14sp'
+        
+        Button:
+            text: 'Clear All'
+            on_press: root.clear_word()
+            background_color: 0.9, 0.24, 0.24, 1  # Red button (#e53e3e)
+            color: 1, 1, 1, 1
+            font_size: '14sp'
+    
+    # Footer
+    Label:
+        text: 'ASL Translator v1.0 | SalInterpret'
+        size_hint_y: 0.05
+        font_size: '12sp'
+        color: 0.44, 0.5, 0.59, 1  # Gray color (#718096)

@@ -1,0 +1,61 @@
+[22:25:12] Starting ASL Translator application
+[22:25:12] Initializing ASL Translator
+[22:25:12] Opening camera with focus on index 0...
+[22:25:12] Trying camera 0 with backend 0
+[22:25:12] Loading TensorFlow model...
+[22:25:12] Importing TensorFlow...
+[22:25:29] Searching for model in paths: ['mataas.h5', 'assets/mataas.h5', './mataas.h5', './assets/mataas.h5', '../assets/mataas.h5', 'C:\\Users\\PC\\OneDrive\\Desktop\\Salinterpret apk\\kivy_venv\\salinterpret\\assets\\mataas.h5', 'C:\\Users\\PC\\OneDrive\\Desktop\\Salinterpret apk\\kivy_venv\\assets\\mataas.h5']
+[22:25:29] Checking path: mataas.h5
+[22:25:29] Checking path: assets/mataas.h5
+[22:25:29] Checking path: ./mataas.h5
+[22:25:29] Checking path: ./assets/mataas.h5
+[22:25:29] Checking path: ../assets/mataas.h5
+[22:25:29] Found model at: ../assets/mataas.h5
+[22:25:29] Loading model from ../assets/mataas.h5
+[22:25:33] Model warmed up with dummy inference
+[22:25:33] Searching for labels in paths: ['../assets\\mataas.json', 'mataas.json', 'assets/mataas.json', './mataas.json', './assets/mataas.json', '../assets/mataas.json', 'C:\\Users\\PC\\OneDrive\\Desktop\\Salinterpret apk\\kivy_venv\\salinterpret\\assets\\mataas.json', 'C:\\Users\\PC\\OneDrive\\Desktop\\Salinterpret apk\\kivy_venv\\assets\\mataas.json']
+[22:25:33] Checking path: ../assets\mataas.json
+[22:25:33] Found labels at: ../assets\mataas.json
+[22:25:33] Labels loaded: 24 classes
+[22:25:33] Initializing hand detector...
+[22:25:33] Using fallback skin color detection to avoid protobuf errors
+[22:25:33] Fallback skin detection initialized
+[22:25:33] Processing loop started with stabilized detection
+[22:25:33] Model and detector initialization complete
+[22:26:12] Successfully opened camera 0 with backend 0
+[22:26:12] Camera loop started
+[22:26:12] Camera ready, beginning hand detection
+[22:26:28] Tracking: q (0.55) - 1/3
+[22:26:31] Consistent prediction: e with confidence 0.68
+[22:26:31] Updated prediction: e with confidence 0.68, word: e
+[22:26:33] Tracking: e (0.67) - 1/3
+[22:26:34] Consistent prediction: e with confidence 0.62
+[22:26:34] Updated prediction: e with confidence 0.62, word: ee
+[22:26:43] Tracking: y (0.51) - 1/3
+[22:26:47] Consistent prediction: y with confidence 0.53
+[22:26:47] Updated prediction: y with confidence 0.53, word: eey
+[22:26:48] Tracking: v (0.59) - 2/3
+[22:26:48] Consistent prediction: v with confidence 0.60
+[22:26:48] Updated prediction: v with confidence 0.60, word: eeyv
+[22:26:49] Consistent prediction: v with confidence 0.51
+[22:26:49] Updated prediction: v with confidence 0.51, word: eeyvv
+[22:26:51] Consistent prediction: v with confidence 0.51
+[22:26:51] Updated prediction: v with confidence 0.51, word: eeyvvv
+[22:26:52] Consistent prediction: v with confidence 0.60
+[22:26:52] Updated prediction: v with confidence 0.60, word: eeyvvvv
+[22:26:53] Tracking: v (0.57) - 3/3
+[22:26:53] Consistent prediction: v with confidence 0.57
+[22:26:53] Updated prediction: v with confidence 0.57, word: eeyvvvvv
+[22:26:54] Consistent prediction: v with confidence 0.57
+[22:26:54] Updated prediction: v with confidence 0.57, word: eeyvvvvvv
+[22:26:56] Deleted last letter: v, word now: eeyvvvvv
+[22:26:57] Deleted last letter: v, word now: eeyvvvv
+[22:26:57] Deleted last letter: v, word now: eeyvvv
+[22:26:57] Deleted last letter: v, word now: eeyvv
+[22:26:57] Consistent prediction: q with confidence 0.51
+[22:26:57] Updated prediction: q with confidence 0.51, word: eeyvvq
+[22:26:58] Deleted last letter: q, word now: eeyvv
+[22:26:58] Deleted last letter: v, word now: eeyv
+[22:26:58] Deleted last letter: v, word now: eey
+[22:27:17] Tracking: e (0.62) - 1/3
+[22:27:22] Application stopping - cleaning up resources

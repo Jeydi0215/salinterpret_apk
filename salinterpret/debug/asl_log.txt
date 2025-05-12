@@ -1,0 +1,9 @@
+[19:33:48] Starting ASL Translator application
+[19:33:49] Initializing ASL Translator
+[19:33:49] Loading TensorFlow model...
+[19:33:49] Error: Model file not found
+[19:33:49] Model loading failed
+[19:42:05] Cleared word: 
+[19:42:05] Cleared word: 
+[19:48:21] Application stopping - cleaning up resources
+[19:48:21] Application cleanup complete
