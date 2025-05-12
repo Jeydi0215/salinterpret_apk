@@ -3,7 +3,7 @@ on: [push, workflow_dispatch]
 
 jobs:
   build:
-    runs-on: ubuntu-20.04  # Explicitly use Ubuntu 20.04 which has better compatibility
+    runs-on: ubuntu-latest  # Use the latest Ubuntu version instead of 20.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -17,7 +17,7 @@ jobs:
         run: |
           sudo apt-get update
           
-          # libltinfo5 is not available, use libncurses5 instead
+          # For Ubuntu 22.04 compatibility (no libltinfo5)
           sudo apt-get install -y \
             git \
             zip \
@@ -30,7 +30,7 @@ jobs:
             zlib1g-dev \
             libncurses5-dev \
             libncursesw5-dev \
-            libncurses5 \
+            libtinfo-dev \  # Use this instead of libltinfo5
             cmake \
             libffi-dev \
             libssl-dev
@@ -67,3 +67,10 @@ jobs:
         run: |
           echo "Looking for APK files..."
           find . -name "*.apk"
+      
+      - name: Upload APK
+        if: success()
+        uses: actions/upload-artifact@v2
+        with:
+          name: asl-translator-apk
+          path: '**/bin/*.apk'
