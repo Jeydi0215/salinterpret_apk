@@ -8,36 +8,76 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
       
-      - name: Build with Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
+      - name: Set up Python
+        uses: actions/setup-python@v2
         with:
-          workdir: .  # Adjust this if your buildozer.spec is in a subdirectory
-          buildozer_version: stable
+          python-version: '3.9'
       
-      # Skip the broken upload-artifact action and use GitHub Release instead
-      - name: Create GitHub Release
-        if: success()
+      - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gh
+          sudo apt-get install -y \
+            build-essential \
+            git \
+            zip \
+            unzip \
+            openjdk-11-jdk \
+            python3-dev \
+            autoconf \
+            libtool \
+            pkg-config \
+            zlib1g-dev \
+            libncurses5-dev \
+            libncursesw5-dev \
+            libtinfo-dev \
+            cmake \
+            libffi-dev \
+            libssl-dev
+      
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --upgrade Cython==0.29.33 buildozer==1.5.0
+      
+      - name: Find buildozer.spec
+        id: find_spec
+        run: |
+          SPEC_PATH=$(find . -name "buildozer.spec" | head -n 1)
+          if [ -n "$SPEC_PATH" ]; then
+            SPEC_DIR=$(dirname "$SPEC_PATH")
+            echo "Found buildozer.spec in: $SPEC_DIR"
+            echo "spec_dir=$SPEC_DIR" >> $GITHUB_OUTPUT
+          else
+            echo "Creating default buildozer.spec in current directory"
+            buildozer init
+            echo "spec_dir=." >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Build APK
+        run: |
+          cd ${{ steps.find_spec.outputs.spec_dir }}
+          buildozer android debug
           
+      - name: List all APKs
+        if: always()
+        run: |
+          echo "Looking for APK files..."
+          find . -name "*.apk"
+      
+      - name: Create Release
+        if: success()
+        run: |
           APK_PATH=$(find . -name "*.apk" | head -n 1)
           if [ -n "$APK_PATH" ]; then
             echo "APK found at: $APK_PATH"
             
-            # Create release with found APK
-            gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
-            
-            # Create a tag based on timestamp to ensure uniqueness
-            TAG_NAME="v-$(date +%Y%m%d%H%M%S)"
-            
-            # Create new release
-            gh release create "$TAG_NAME" "$APK_PATH" --title "ASL Translator APK" --notes "Built with GitHub Actions"
-            
-            echo "::set-output name=release_url::https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME"
+            curl -X POST \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @"$APK_PATH" \
+              "https://uploads.github.com/repos/${{ github.repository }}/releases/tags/latest/assets?name=asl_translator.apk"
           else
             echo "No APK file was found!"
             exit 1
           fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
