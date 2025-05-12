@@ -166,15 +166,153 @@ class ASLTranslatorWidget(BoxLayout):
         Clock.schedule_once(lambda dt: setattr(self, 'current_letter', "Ready"), 0)
         log("Model and detector initialization complete")
     
-    def load_model(self):
-        """Load the TensorFlow model and labels"""
+    def download_model_from_drive(self, output_path, model_id):
+        """Download the model file from Google Drive"""
         try:
-            # IMPROVEMENT: Lazy import TensorFlow only when needed
+            log(f"Downloading model from Google Drive: {model_id}")
+            # Try to import requests for downloading
+            try:
+                import requests
+                
+                # Create the directory if it doesn't exist
+                os.makedirs(os.path.dirname(output_path), exist_ok=True)
+                
+                # Google Drive direct download URL
+                url = f"https://drive.google.com/uc?export=download&id={model_id}"
+                
+                # Display message for user
+                Clock.schedule_once(lambda dt: setattr(self, 'current_letter', "Downloading model..."), 0)
+                
+                # Send a request with a streaming response
+                response = requests.get(url, stream=True)
+                
+                # Get file size if available
+                file_size = int(response.headers.get('Content-Length', 0))
+                downloaded = 0
+                
+                with open(output_path, 'wb') as out_file:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:  # Filter out keep-alive chunks
+                            out_file.write(chunk)
+                            downloaded += len(chunk)
+                            
+                            # Update progress percentage
+                            if file_size > 0:
+                                progress = int((downloaded / file_size) * 100)
+                                # Update loading progress via Kivy Clock
+                                Clock.schedule_once(lambda dt, p=progress: setattr(self, 'loading_progress', p), 0)
+                
+            except ImportError:
+                # Fallback to urllib if requests is not available
+                log("Requests library not available, falling back to urllib")
+                import urllib.request
+                
+                # Create the directory if it doesn't exist
+                os.makedirs(os.path.dirname(output_path), exist_ok=True)
+                
+                # Google Drive direct download URL
+                url = f"https://drive.google.com/uc?export=download&id={model_id}"
+                
+                # Display message for user
+                Clock.schedule_once(lambda dt: setattr(self, 'current_letter', "Downloading model..."), 0)
+                
+                # Download with progress updates
+                with urllib.request.urlopen(url) as response:
+                    file_size = int(response.headers.get('Content-Length', 0))
+                    downloaded = 0
+                    
+                    with open(output_path, 'wb') as out_file:
+                        while True:
+                            buffer = response.read(8192)  # Read in chunks
+                            if not buffer:
+                                break
+                            
+                            out_file.write(buffer)
+                            downloaded += len(buffer)
+                            
+                            # Update progress percentage
+                            if file_size > 0:
+                                progress = int((downloaded / file_size) * 100)
+                                # Update loading progress via Kivy Clock
+                                Clock.schedule_once(lambda dt, p=progress: setattr(self, 'loading_progress', p), 0)
+            
+            log(f"Model downloaded successfully: {output_path}")
+            return True
+        except Exception as e:
+            log(f"Model download error: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            # Try to create an empty marker file to indicate download failure
+            try:
+                with open(output_path + ".failed", 'w') as f:
+                    f.write(f"Download failed: {str(e)}")
+            except:
+                pass
+                
+            return False
+
+    def download_labels_from_drive(self, output_path, labels_id):
+        """Download the labels file from Google Drive"""
+        try:
+            log(f"Downloading labels from Google Drive: {labels_id}")
+            # Try to import requests for downloading
+            try:
+                import requests
+                
+                # Create the directory if it doesn't exist
+                os.makedirs(os.path.dirname(output_path), exist_ok=True)
+                
+                # Google Drive direct download URL
+                url = f"https://drive.google.com/uc?export=download&id={labels_id}"
+                
+                # Display message for user
+                Clock.schedule_once(lambda dt: setattr(self, 'current_letter', "Downloading labels..."), 0)
+                
+                # Send a request with a streaming response
+                response = requests.get(url, stream=True)
+                
+                with open(output_path, 'wb') as out_file:
+                    for chunk in response.iter_content(chunk_size=4096):
+                        if chunk:  # Filter out keep-alive chunks
+                            out_file.write(chunk)
+                
+            except ImportError:
+                # Fallback to urllib if requests is not available
+                log("Requests library not available, falling back to urllib")
+                import urllib.request
+                
+                # Create the directory if it doesn't exist
+                os.makedirs(os.path.dirname(output_path), exist_ok=True)
+                
+                # Google Drive direct download URL
+                url = f"https://drive.google.com/uc?export=download&id={labels_id}"
+                
+                # Display message for user
+                Clock.schedule_once(lambda dt: setattr(self, 'current_letter', "Downloading labels..."), 0)
+                
+                # Download the file
+                with urllib.request.urlopen(url) as response:
+                    with open(output_path, 'wb') as out_file:
+                        out_file.write(response.read())
+            
+            log(f"Labels downloaded successfully: {output_path}")
+            return True
+        except Exception as e:
+            log(f"Labels download error: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def load_model(self):
+        """Load the TensorFlow model and labels, downloading from Google Drive if needed"""
+        try:
+            # Lazy import TensorFlow only when needed
             log("Importing TensorFlow...")
             import tensorflow as tf
             from tensorflow.keras.models import load_model
             
-            # FIXED: Search for model in project structure with more paths
+            # FIXED: Define model paths with priorities
             model_paths = [
                 'mataas.h5', 
                 'assets/mataas.h5', 
@@ -196,31 +334,34 @@ class ASLTranslatorWidget(BoxLayout):
                     model_path = path
                     break
             
+            # If model not found, download from Google Drive
             if not model_path:
-                # Try to find model by searching directories
-                log("Model not found in expected locations, searching directories...")
+                log("Model not found locally, downloading from Google Drive")
                 
-                def find_file(name, search_path):
-                    for root, dirs, files in os.walk(search_path):
-                        if name in files:
-                            return os.path.join(root, name)
-                    return None
+                # Create assets directory if it doesn't exist
+                assets_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets')
+                os.makedirs(assets_dir, exist_ok=True)
                 
-                # Start search from current directory and parent
-                current_dir = os.path.abspath(os.path.dirname(__file__))
-                parent_dir = os.path.dirname(current_dir)
+                # Target path for downloaded model
+                download_path = os.path.join(assets_dir, 'mataas.h5')
                 
-                # Try to find model file
-                found_path = find_file('mataas.h5', current_dir)
-                if not found_path:
-                    found_path = find_file('mataas.h5', parent_dir)
+                # Google Drive file ID - get this from your Google Drive link
+                # For example, if your link is https://drive.google.com/file/d/12DeDc_okFe-Jw0OFSsOD9esui1nyZz-K/view
+                # The ID would be 12DeDc_okFe-Jw0OFSsOD9esui1nyZz-K
+                model_id = "12DeDc_okFe-Jw0OFSsOD9esui1nyZz-K"  # Replace with actual file ID
                 
-                if found_path:
-                    log(f"Found model by directory search: {found_path}")
-                    model_path = found_path
+                # Download the model
+                if self.download_model_from_drive(download_path, model_id):
+                    model_path = download_path
+                    log(f"Successfully downloaded model to {model_path}")
                 else:
-                    log("Error: Model file not found after searching directories")
+                    log("Failed to download model")
                     return False
+            
+            # If model path is still not found, give up
+            if not model_path or not os.path.exists(model_path):
+                log("Critical error: Model path not found or invalid")
+                return False
             
             # IMPROVEMENT: Load model with performance optimizations
             log(f"Loading model from {model_path}")
@@ -266,6 +407,29 @@ class ASLTranslatorWidget(BoxLayout):
                     label_path = path
                     break
             
+            # If labels not found, download from Google Drive
+            if not label_path:
+                log("Labels not found locally, downloading from Google Drive")
+                
+                # Create assets directory if it doesn't exist
+                assets_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets')
+                os.makedirs(assets_dir, exist_ok=True)
+                
+                # Target path for downloaded labels
+                download_path = os.path.join(assets_dir, 'mataas.json')
+                
+                # Google Drive file ID for labels - set this to your actual file ID
+                labels_id = "1-tLDCCbepSfDjgXS6zru_J7YNP1dIHW-"  # Replace with actual labels file ID
+                
+                # Download the labels
+                if self.download_labels_from_drive(download_path, labels_id):
+                    label_path = download_path
+                    log(f"Successfully downloaded labels to {label_path}")
+                else:
+                    log("Failed to download labels")
+                    # Try to continue anyway - we might have some default labels
+            
+            # Fall back to searching directories if download failed
             if not label_path:
                 # Try to find labels by searching directories
                 log("Labels not found in expected locations, searching directories...")
@@ -289,8 +453,18 @@ class ASLTranslatorWidget(BoxLayout):
                     log(f"Found labels by directory search: {found_path}")
                     label_path = found_path
                 else:
-                    log("Error: Labels file not found after searching directories")
-                    return False
+                    # If we still can't find labels, create a basic set of labels
+                    log("Creating default labels as last resort")
+                    default_labels = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", 
+                                     "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"]
+                    
+                    import json
+                    default_path = os.path.join(assets_dir, 'mataas.json')
+                    with open(default_path, 'w') as f:
+                        json.dump(default_labels, f)
+                    
+                    label_path = default_path
+                    log(f"Created default labels at: {label_path}")
             
             # Load labels
             import json
@@ -710,8 +884,6 @@ class ASLTranslatorWidget(BoxLayout):
         except Exception as e:
             log(f"Skin detection error: {e}")
             return None
-            log(f"Processing error: {e}")
-            time.sleep(0.1)
     
     def update_detection_status(self, detected):
         """Update hand detection status (called from main thread)"""
@@ -944,180 +1116,3 @@ class ASLTranslatorWidget(BoxLayout):
         
         # Close log file
         log("Application cleanup complete")
-
-# IMPROVEMENT: Define UI in code to avoid loading a .kv file
-from kivy.uix.label import Label
-from kivy.uix.button import Button
-from kivy.uix.textinput import TextInput
-
-class ASLTranslatorApp(App):
-    """Main application class"""
-    
-    def build(self):
-        """Build the application"""
-        self.title = 'ASL Translator'
-        
-        # Create the main layout
-        main_layout = BoxLayout(orientation='vertical', padding=[10, 10, 10, 10], spacing=10)
-        
-        # Title label
-        title = Label(
-            text='ASL Translator',
-            font_size='24sp',
-            size_hint=(1, None),
-            height=40
-        )
-        main_layout.add_widget(title)
-        
-        # Subtitle label
-        subtitle = Label(
-            text='Translate American Sign Language in real-time',
-            font_size='14sp',
-            size_hint=(1, None),
-            height=30
-        )
-        main_layout.add_widget(subtitle)
-        
-        # Create the camera container
-        camera_container = BoxLayout(size_hint=(1, 0.7))
-        main_layout.add_widget(camera_container)
-        
-        # Create status indicator box
-        status_box = BoxLayout(
-            size_hint=(1, None),
-            height=30,
-            spacing=10
-        )
-        
-        # Create status indicator widget
-        from kivy.uix.widget import Widget
-        status_indicator = Widget(
-            size_hint=(None, None),
-            size=(20, 20)
-        )
-        status_box.add_widget(status_indicator)
-        
-        # Status label
-        status_label = Label(
-            text='No hand detected',
-            size_hint=(1, None),
-            height=30
-        )
-        status_box.add_widget(status_label)
-        main_layout.add_widget(status_box)
-        
-        # Translation label
-        translation_label = Label(
-            text='Translation',
-            size_hint=(1, None),
-            height=30
-        )
-        main_layout.add_widget(translation_label)
-        
-        # Translation text input
-        translation_text = TextInput(
-            size_hint=(1, None),
-            height=70,
-            readonly=True,
-            multiline=True
-        )
-        main_layout.add_widget(translation_text)
-        
-        # Button box
-        button_box = BoxLayout(
-            size_hint=(1, None),
-            height=50,
-            spacing=10
-        )
-        
-        # Delete button
-        delete_button = Button(
-            text='Delete Last Letter',
-            size_hint=(0.5, 1)
-        )
-        button_box.add_widget(delete_button)
-        
-        # Clear button
-        clear_button = Button(
-            text='Clear All',
-            size_hint=(0.5, 1)
-        )
-        button_box.add_widget(clear_button)
-        main_layout.add_widget(button_box)
-        
-        # Version label
-        version_label = Label(
-            text='ASL Translator v1.0 | SallInterpret',
-            font_size='12sp',
-            size_hint=(1, None),
-            height=20
-        )
-        main_layout.add_widget(version_label)
-        
-        # Create translator widget with custom UI
-        translator = ASLTranslatorWidget()
-        
-        # Store references to widgets
-        translator.ids = {
-            'camera_container': camera_container,
-            'status_indicator': status_indicator,
-            'status_label': status_label,
-            'translation_text': translation_text
-        }
-        
-        # Bind properties
-        translator.bind(
-            hand_detected=lambda obj, val: setattr(
-                status_label, 'text', 'Hand detected' if val else 'No hand detected'
-            ),
-            translated_word=lambda obj, val: setattr(translation_text, 'text', val),
-            status_color=lambda obj, val: self.update_status_color(status_indicator, val)
-        )
-        
-        # Bind buttons
-        delete_button.bind(on_press=lambda x: translator.delete_last_letter())
-        clear_button.bind(on_press=lambda x: translator.clear_word())
-        
-        return translator
-    
-    def update_status_color(self, widget, value):
-        """Updates the status indicator color"""
-        from kivy.graphics import Color, Ellipse
-        widget.canvas.clear()
-        with widget.canvas:
-            Color(*value)
-            Ellipse(pos=widget.pos, size=widget.size)
-    
-    def on_stop(self):
-        """Handle application stop"""
-        if hasattr(self.root, 'on_stop'):
-            self.root.on_stop()
-
-if __name__ == '__main__':
-    try:
-        # Log the current working directory and available files to help debugging
-        current_dir = os.path.abspath(os.path.dirname(__file__))
-        print(f"Current working directory: {current_dir}")
-        print(f"Files in current directory: {os.listdir(current_dir)}")
-        
-        # Try to list assets directory if it exists
-        assets_dir = os.path.join(current_dir, 'assets')
-        if os.path.exists(assets_dir) and os.path.isdir(assets_dir):
-            print(f"Files in assets directory: {os.listdir(assets_dir)}")
-        else:
-            print("Assets directory not found in current location")
-            
-        # Check parent directory assets
-        parent_dir = os.path.dirname(current_dir)
-        parent_assets = os.path.join(parent_dir, 'assets')
-        if os.path.exists(parent_assets) and os.path.isdir(parent_assets):
-            print(f"Files in parent assets directory: {os.listdir(parent_assets)}")
-        
-        # IMPROVEMENT: Set environment variables at the start
-        log("Starting ASL Translator application")
-        ASLTranslatorApp().run()
-        log("Application closed normally")
-    except Exception as e:
-        log(f"Application error: {e}")
-        import traceback
-        traceback.print_exc()
