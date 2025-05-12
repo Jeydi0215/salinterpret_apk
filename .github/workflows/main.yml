@@ -94,28 +94,32 @@ jobs:
           cd myapp
           
           # Environment variables for NDK
+          export ANDROIDSDK=/usr/local/lib/android/sdk
+          export ANDROIDNDK=/usr/local/lib/android/sdk/ndk/27.2.12479018
           export ANDROIDAPI=31
           export ANDROIDMINAPI=21
           export NDKAPI=21
           
-          # Setting special env vars for P4A
-          export APP_ANDROID_NATIVE_API=31
-          export APP_ANDROID_MIN_API=21
-          export USE_SDK_WRAPPER=1
-          export P4A_DEBUG_OUTPUT=1
-          
-          # Clean any previous build attempts
-          buildozer android clean
-          
-          # Run buildozer with explicit NDK path by forcing it from the env
-          echo "Building with Android NDK from $(which ndk-build || echo 'NDK not found')"
-          export PATH=${ANDROID_NDK_HOME}:${PATH}
-          export ANDROIDNDK=${ANDROID_NDK_HOME}
-          
           # Show debug info
-          buildozer android p4a -- --debug info
+          cat buildozer.spec
+          echo "Using Android NDK at: $ANDROIDNDK"
           
-          # Build with verbose output
+          # Initialize buildozer first (important to set up p4a)
+          buildozer init
+          
+          # Explicitly force download/setup of p4a before cleaning
+          buildozer android p4a --version
+          
+          # Make sure the p4a directory exists and is up to date
+          mkdir -p .buildozer/android/platform/
+          cd .buildozer/android/platform/
+          [ -d "python-for-android" ] || git clone https://github.com/kivy/python-for-android.git --branch develop
+          cd python-for-android
+          git checkout develop
+          git pull
+          cd ../../../..
+          
+          # Now proceed with the build
           buildozer -v android debug
           
           # If build fails, show detailed logs
@@ -123,9 +127,9 @@ jobs:
             echo "Build failed, showing detailed logs:"
             cat .buildozer/logs/buildozer.log || true
             echo "--- Python for Android logs ---"
-            find .buildozer -name "build.log" -exec tail -n 200 {} \;
+            find .buildozer -name "build.log" -exec tail -n 200 {} \; || true
             echo "--- SDK/NDK info ---"
-            ls -la /usr/local/lib/android/sdk/ndk
+            ls -la $ANDROIDNDK || true
           fi
           
           # Find and display the APK path
