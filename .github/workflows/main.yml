@@ -78,7 +78,7 @@ jobs:
           echo 'android.permissions = CAMERA,INTERNET' >> buildozer.spec
           echo 'android.api = 31' >> buildozer.spec
           echo 'android.minapi = 21' >> buildozer.spec
-          echo 'android.ndk = 23b' >> buildozer.spec
+          echo 'android.ndk = 25b' >> buildozer.spec
           echo 'android.accept_sdk_license = True' >> buildozer.spec
           echo 'p4a.bootstrap = sdl2' >> buildozer.spec
           echo 'log_level = 2' >> buildozer.spec
