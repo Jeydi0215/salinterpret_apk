@@ -1,8 +1,10 @@
-name: Build APK
+name: Build ASL Translator APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
   workflow_dispatch:  # Allows manual triggering
 
 jobs:
@@ -17,28 +19,47 @@ jobs:
         with:
           python-version: '3.9'
           
-      - name: Install build dependencies
+      - name: Cache Buildozer dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.buildozer
+            .buildozer
+          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
+        
+      - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y git zip unzip openjdk-11-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
-          pip install --upgrade Cython==0.29.33 virtualenv buildozer
+          
+      - name: Install build dependencies
+        run: |
+          pip install --upgrade Cython==0.29.33 virtualenv buildozer==1.5.0
           
       - name: Build APK with Buildozer
         run: |
-          # Update buildozer.spec if necessary
+          # Set environment variables for NDK/SDK
+          export PATH=$PATH:~/.buildozer/android/platform/android-sdk/tools/bin
+          export ANDROID_SDK_ROOT=~/.buildozer/android/platform/android-sdk
+          
+          # Clean any previous builds
+          buildozer clean
+          
+          # Build the APK
           buildozer android debug
         
-      - name: Upload APK
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v3
         with:
-          name: salinterpret-apk
+          name: asl-translator-debug
           path: bin/*.apk
           
-      - name: Create Release
-        id: create_release
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Create pre-release
+        uses: "marvinpinto/action-automatic-releases@latest"
         with:
-          files: bin/*.apk
-          draft: false
-          prerelease: false
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: "latest"
+          prerelease: true
+          title: "Development Build"
+          files: |
+            bin/*.apk
