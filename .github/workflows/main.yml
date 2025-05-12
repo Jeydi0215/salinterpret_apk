@@ -4,16 +4,14 @@ on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
+    container:
+      image: kivy/buildozer:latest  # Using the official Kivy Buildozer image
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v2
         with:
           lfs: true
-          
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.9'
-          
+      
       - name: Cache Buildozer dependencies
         uses: actions/cache@v3
         with:
@@ -21,31 +19,42 @@ jobs:
             ~/.buildozer
             salinterpret/.buildozer
           key: ${{ runner.os }}-buildozer-${{ hashFiles('salinterpret/buildozer.spec') }}
-
-      - name: Build with Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
-        with:
-          workdir: salinterpret
-          buildozer_version: stable
-          
-      # Let's skip the artifact upload for now since it's causing issues
-      # We'll focus on just getting a successful build first
       
-      # After build completes, create a custom release without using the actions
+      - name: List files and check structure
+        run: |
+          echo "Repository contents:"
+          ls -la
+          echo "Salinterpret directory:"
+          ls -la salinterpret || echo "Directory not found"
+      
+      - name: Build APK with Buildozer
+        run: |
+          cd salinterpret
+          buildozer android debug
+      
+      - name: List APK files
+        run: |
+          find salinterpret/bin -name "*.apk" || echo "No APK files found"
+      
+      - name: Save APK to workspace
+        run: |
+          mkdir -p /github/workspace/output
+          cp salinterpret/bin/*.apk /github/workspace/output/ || echo "No APK files to copy"
+      
+      # Use GitHub CLI to create a release with the APK
       - name: Create GitHub Release
         if: success()
         run: |
-          APK_PATH=$(find salinterpret/bin -name "*.apk" | head -n 1)
+          apt-get update
+          apt-get install -y gh
+          
+          APK_PATH=$(find /github/workspace/output -name "*.apk" | head -n 1)
           if [ -n "$APK_PATH" ]; then
             echo "APK found at: $APK_PATH"
             
-            # Install GitHub CLI
-            sudo apt-get update
-            sudo apt-get install -y gh
-            
             # Create release with found APK
             gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
-            gh release create release-v1.0 "$APK_PATH" --title "ASL Translator APK" --notes "Built with GitHub Actions"
+            gh release create v1.0 "$APK_PATH" --title "ASL Translator APK" --notes "Built with GitHub Actions"
           else
             echo "No APK file was found!"
             exit 1
