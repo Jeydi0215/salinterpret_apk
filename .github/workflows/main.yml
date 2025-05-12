@@ -6,20 +6,20 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest  # Changed from ubuntu-20.04 to ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3  # Updated to v3
         with:
           lfs: true
         
       - name: Setup Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4  # Updated to v4
         with:
           python-version: '3.9'
           
       - name: Cache Buildozer dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v3  # Updated to v3
         with:
           path: |
             ~/.buildozer
@@ -37,8 +37,15 @@ jobs:
           
       - name: Build APK with Buildozer
         run: |
+          # List directories to understand file structure
+          echo "Current directory: $(pwd)"
+          ls -la
+          
           # Move to the directory containing buildozer.spec
           cd salinterpret
+          
+          # Verify buildozer.spec exists
+          ls -la
           
           # Set environment variables for NDK/SDK
           export PATH=$PATH:~/.buildozer/android/platform/android-sdk/tools/bin
@@ -47,35 +54,15 @@ jobs:
           # Clean any previous builds
           buildozer clean
           
-          # Build the APK
-          buildozer android debug
+          # Build the APK with verbose output
+          buildozer -v android debug
           
-          # List files to verify APK was created
-          ls -la bin/ || echo "bin directory may not exist yet"
+          # Check if the APK was created
+          find bin -type f -name "*.apk" || echo "No APK files found"
         
-      - name: List and Store APK
+      - name: Upload APK artifact
         if: success()
-        run: |
-          mkdir -p artifacts
-          find salinterpret/bin -name "*.apk" -exec cp {} artifacts/ \;
-          ls -la artifacts/
-          
-      # Using GitHub CLI for release creation instead of actions
-      - name: Create GitHub Release
-        if: success()
-        run: |
-          sudo apt-get install -y gh
-          gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
-          
-          # Check if release exists and delete it
-          gh release delete latest --yes || echo "Release does not exist yet"
-          
-          # Create new release with any APKs found
-          if [ "$(find artifacts -name '*.apk' | wc -l)" -gt 0 ]; then
-            gh release create latest artifacts/*.apk --title "Latest Build" --notes "Automated build from GitHub Actions" --prerelease
-          else
-            echo "No APK files found to release"
-            exit 1
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions/upload-artifact@v3  # Trying v3 since we're using latest runners
+        with:
+          name: asl-translator-apk
+          path: salinterpret/bin/*.apk
