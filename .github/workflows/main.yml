@@ -97,12 +97,6 @@ jobs:
           cat buildozer.spec
           echo "Using Android NDK at: $ANDROIDNDK"
           
-          # Force explicit NDK path using the system's available NDK
-          echo 'android.ndk_path = /usr/local/lib/android/sdk/ndk/27.2.12479018' >> buildozer.spec
-          
-          # Increase debug level
-          echo 'log_level = 2' >> buildozer.spec
-          
           # Run buildozer with debug output
           buildozer -v android debug
           
