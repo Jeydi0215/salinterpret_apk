@@ -13,11 +13,11 @@ jobs:
         with:
           python-version: '3.9'
       
-      - name: Set up JDK 11
+      - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '17'  # Updated to JDK 17
       
       - name: Install Android SDK
         run: |
@@ -25,30 +25,35 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y wget unzip
           
-          mkdir -p $HOME/android-sdk
-          cd $HOME/android-sdk
+          # Define SDK location
+          export ANDROID_HOME=$HOME/android-sdk
+          mkdir -p $ANDROID_HOME
+          cd $ANDROID_HOME
           
           # Download commandlinetools
-          wget https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip -O tools.zip
-          unzip tools.zip
-          rm tools.zip
+          wget https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip
           
-          # Create the expected directory structure
-          mkdir -p cmdline-tools/latest
-          mv cmdline-tools/* cmdline-tools/latest/ || true  # Move everything except 'latest' itself
-          rm -rf cmdline-tools/tools || true  # Remove redundant 'tools' directory if it exists
+          # Unzip directly to the correct location with the right structure
+          mkdir -p $ANDROID_HOME/cmdline-tools
+          unzip -q commandlinetools-linux-10406996_latest.zip -d $ANDROID_HOME/tmp
+          mv $ANDROID_HOME/tmp/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+          rm -rf $ANDROID_HOME/tmp
+          rm commandlinetools-linux-10406996_latest.zip
+          
+          # Verify directory structure
+          ls -la $ANDROID_HOME/cmdline-tools/latest/bin || echo "Directory structure incorrect"
           
           # Set up environment variables
-          export ANDROID_HOME=$HOME/android-sdk
           export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
           
-          # Install required packages (with yes to accept licenses)
-          yes | sdkmanager --sdk_root=$ANDROID_HOME "platforms;android-31" "build-tools;33.0.0" "platform-tools" "ndk;23.1.7779620"
+          # Install required packages
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-31" "build-tools;33.0.0" "ndk;23.1.7779620"
           
           # Add SDK location to environment
           echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
           echo "PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools" >> $GITHUB_ENV
+          echo "JAVA_HOME=$(readlink -f /usr/bin/javac | sed 's:/bin/javac::')" >> $GITHUB_ENV
       
       - name: Install dependencies
         run: |
@@ -112,9 +117,8 @@ jobs:
           echo 'android.ndk = 23.1.7779620' >> buildozer.spec
           echo "android.sdk_path = $ANDROID_HOME" >> buildozer.spec
           echo "android.accept_sdk_license = True" >> buildozer.spec
-          echo "android.ndk_path = $ANDROID_HOME/ndk/23.1.7779620" >> buildozer.spec
-          # The following lines tell buildozer to use system's NDK and SDK rather than downloading them
-          echo "android.skip_update = True" >> buildozer.spec
+          echo 'p4a.bootstrap = sdl2' >> buildozer.spec
+          echo 'android.skip_update = True' >> buildozer.spec
       
       - name: Build APK
         run: |
@@ -125,14 +129,11 @@ jobs:
           export ANDROID_SDK_ROOT=$HOME/android-sdk
           export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
           
-          # Build with verbose output
+          # Build with verbose output for debugging
           buildozer -v android debug
           
-          echo "APK files in bin directory:"
-          find bin -name "*.apk" || echo "No APKs found in bin/"
-          
-          echo "APK files in any subdirectory:"
-          find . -name "*.apk" || echo "No APKs found"
+          # Find the APK
+          find . -name "*.apk"
       
       - name: Create GitHub Release
         if: success()
@@ -140,7 +141,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gh
           
-          APK_PATH=$(find myapp -name "*.apk" | head -n 1)
+          cd myapp  # Make sure we're in the right directory
+          APK_PATH=$(find . -name "*.apk" | head -n 1)
           if [ -n "$APK_PATH" ]; then
             echo "APK found at: $APK_PATH"
             
