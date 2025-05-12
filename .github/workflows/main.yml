@@ -90,3 +90,30 @@ jobs:
           name: asl-translator-apk
           path: myapp/bin/*.apk
           if-no-files-found: error
+      
+      - name: Create GitHub Release
+        if: success()
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gh
+          
+          APK_PATH=$(find myapp/bin -name "*.apk" | head -n 1)
+          if [ -n "$APK_PATH" ]; then
+            echo "APK found at: $APK_PATH"
+            
+            # Create release with found APK
+            gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
+            
+            # Create a tag based on timestamp
+            TAG_NAME="v-$(date +%Y%m%d%H%M%S)"
+            
+            # Create new release
+            gh release create "$TAG_NAME" "$APK_PATH" --title "ASL Translator APK" --notes "Built with GitHub Actions"
+            
+            echo "Release created successfully with tag: $TAG_NAME"
+          else
+            echo "No APK file was found!"
+            exit 1
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
