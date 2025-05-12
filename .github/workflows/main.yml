@@ -1,5 +1,4 @@
 name: Build APK
-
 on: [push, workflow_dispatch]
 
 jobs:
@@ -8,9 +7,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-        with:
-          lfs: true
-      
+        
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
@@ -39,19 +36,12 @@ jobs:
         run: |
           find salinterpret/bin -name "*.apk" || echo "No APK files found"
       
-      - name: Prepare for GitHub Release
-        if: success()
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y curl
-          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-          sudo apt-get update
-          sudo apt-get install -y gh
-      
       - name: Create GitHub Release
         if: success()
         run: |
+          sudo apt-get update
+          sudo apt-get install -y gh
+          
           APK_PATH=$(find salinterpret/bin -name "*.apk" | head -n 1)
           if [ -n "$APK_PATH" ]; then
             echo "APK found at: $APK_PATH"
