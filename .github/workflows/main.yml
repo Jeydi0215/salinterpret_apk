@@ -3,60 +3,67 @@ on: [push, workflow_dispatch]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04  # Explicitly use Ubuntu 20.04 which has better compatibility
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-        
+      
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
           python-version: '3.9'
       
-      - name: Cache Buildozer dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.buildozer
-            salinterpret/.buildozer
-          key: ${{ runner.os }}-buildozer-${{ hashFiles('salinterpret/buildozer.spec') }}
-      
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git zip unzip openjdk-11-jdk python3-pip virtualenv autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
-          pip install --upgrade Cython==0.29.33 buildozer==1.5.0
+          
+          # libltinfo5 is not available, use libncurses5 instead
+          sudo apt-get install -y \
+            git \
+            zip \
+            unzip \
+            openjdk-11-jdk \
+            python3-pip \
+            autoconf \
+            libtool \
+            pkg-config \
+            zlib1g-dev \
+            libncurses5-dev \
+            libncursesw5-dev \
+            libncurses5 \
+            cmake \
+            libffi-dev \
+            libssl-dev
+          
+          python -m pip install --upgrade pip
+          pip install Cython==0.29.33 virtualenv buildozer==1.5.0
+      
+      - name: Check project structure
+        run: |
+          ls -la
+          echo "===== Python files ====="
+          find . -name "*.py" | sort
+          echo "===== Buildozer spec ====="
+          find . -name "buildozer.spec" | sort
       
       - name: Build APK
         run: |
-          cd salinterpret
-          buildozer android debug
-      
-      - name: List APK files
-        run: |
-          find salinterpret/bin -name "*.apk" || echo "No APK files found"
-      
-      - name: Create GitHub Release
-        if: success()
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gh
-          
-          APK_PATH=$(find salinterpret/bin -name "*.apk" | head -n 1)
-          if [ -n "$APK_PATH" ]; then
-            echo "APK found at: $APK_PATH"
-            
-            # Create release with found APK
-            gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
-            
-            # Delete existing release if it exists
-            gh release delete v1.0 --yes || echo "No existing release to delete"
-            
-            # Create new release
-            gh release create v1.0 "$APK_PATH" --title "ASL Translator APK" --notes "Built with GitHub Actions"
+          # First, determine if we need to CD into a directory
+          SPEC_PATH=$(find . -name "buildozer.spec" | head -n 1)
+          if [ -n "$SPEC_PATH" ]; then
+            SPEC_DIR=$(dirname "$SPEC_PATH")
+            echo "Found buildozer.spec in: $SPEC_DIR"
+            cd "$SPEC_DIR"
           else
-            echo "No APK file was found!"
+            echo "Error: buildozer.spec not found!"
             exit 1
           fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+          # Build with verbose output
+          buildozer -v android debug
+      
+      - name: List APK files
+        if: always()  # Run even if previous step fails
+        run: |
+          echo "Looking for APK files..."
+          find . -name "*.apk"
