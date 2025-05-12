@@ -81,15 +81,9 @@ jobs:
           cd myapp
           buildozer android debug
           
-          # Copy APK to workspace root for easier access
-          find . -name "*.apk" -exec cp {} .. \;
-      
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: asl-translator-apk
-          path: myapp/bin/*.apk
-          if-no-files-found: error
+          # List APK files for debugging
+          echo "APK files found:"
+          find . -name "*.apk"
       
       - name: Create GitHub Release
         if: success()
@@ -113,6 +107,7 @@ jobs:
             echo "Release created successfully with tag: $TAG_NAME"
           else
             echo "No APK file was found!"
+            find . -name "*.apk"  # Double-check where APKs might be
             exit 1
           fi
         env:
