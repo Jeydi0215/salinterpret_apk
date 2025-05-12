@@ -3,74 +3,41 @@ on: [push, workflow_dispatch]
 
 jobs:
   build:
-    runs-on: ubuntu-latest  # Use the latest Ubuntu version instead of 20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
       
-      - name: Set up Python
-        uses: actions/setup-python@v2
+      - name: Build with Buildozer
+        uses: ArtemSBulgakov/buildozer-action@v1
         with:
-          python-version: '3.9'
+          workdir: .  # Adjust this if your buildozer.spec is in a subdirectory
+          buildozer_version: stable
       
-      - name: Install dependencies
+      # Skip the broken upload-artifact action and use GitHub Release instead
+      - name: Create GitHub Release
+        if: success()
         run: |
           sudo apt-get update
+          sudo apt-get install -y gh
           
-          # For Ubuntu 22.04 compatibility (no libltinfo5)
-          sudo apt-get install -y \
-            git \
-            zip \
-            unzip \
-            openjdk-11-jdk \
-            python3-pip \
-            autoconf \
-            libtool \
-            pkg-config \
-            zlib1g-dev \
-            libncurses5-dev \
-            libncursesw5-dev \
-            libtinfo-dev \  # Use this instead of libltinfo5
-            cmake \
-            libffi-dev \
-            libssl-dev
-          
-          python -m pip install --upgrade pip
-          pip install Cython==0.29.33 virtualenv buildozer==1.5.0
-      
-      - name: Check project structure
-        run: |
-          ls -la
-          echo "===== Python files ====="
-          find . -name "*.py" | sort
-          echo "===== Buildozer spec ====="
-          find . -name "buildozer.spec" | sort
-      
-      - name: Build APK
-        run: |
-          # First, determine if we need to CD into a directory
-          SPEC_PATH=$(find . -name "buildozer.spec" | head -n 1)
-          if [ -n "$SPEC_PATH" ]; then
-            SPEC_DIR=$(dirname "$SPEC_PATH")
-            echo "Found buildozer.spec in: $SPEC_DIR"
-            cd "$SPEC_DIR"
+          APK_PATH=$(find . -name "*.apk" | head -n 1)
+          if [ -n "$APK_PATH" ]; then
+            echo "APK found at: $APK_PATH"
+            
+            # Create release with found APK
+            gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
+            
+            # Create a tag based on timestamp to ensure uniqueness
+            TAG_NAME="v-$(date +%Y%m%d%H%M%S)"
+            
+            # Create new release
+            gh release create "$TAG_NAME" "$APK_PATH" --title "ASL Translator APK" --notes "Built with GitHub Actions"
+            
+            echo "::set-output name=release_url::https://github.com/${{ github.repository }}/releases/tag/$TAG_NAME"
           else
-            echo "Error: buildozer.spec not found!"
+            echo "No APK file was found!"
             exit 1
           fi
-          
-          # Build with verbose output
-          buildozer -v android debug
-      
-      - name: List APK files
-        if: always()  # Run even if previous step fails
-        run: |
-          echo "Looking for APK files..."
-          find . -name "*.apk"
-      
-      - name: Upload APK
-        if: success()
-        uses: actions/upload-artifact@v2
-        with:
-          name: asl-translator-apk
-          path: '**/bin/*.apk'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
